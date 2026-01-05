@@ -311,7 +311,116 @@ class CloseTicketView(View):
     async def close_button(self, interaction: discord.Interaction, button: Button):
         await interaction.response.defer()
         await close_ticket(interaction.channel, interaction.user)
-        
+
+
+===================== CONFIG
+TICKET_CATEGORY_NAME = "Base Tickets"
+
+HALLOWEEN_ROLE_ID = 1457797160564298031
+AQUA_ROLE_ID = 1457797160564298031
+# =================================================
+
+# ===================== DROPDOWN ===================
+class BaseServiceSelect(Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(
+                label="Halloween Base",
+                description="🎃 Open a Halloween base service ticket",
+                emoji="🎃",
+                value="halloween"
+            ),
+            discord.SelectOption(
+                label="Aqua Base",
+                description="🌊 Open an Aqua base service ticket",
+                emoji="🌊",
+                value="aqua"
+            )
+        ]
+
+        super().__init__(
+            placeholder="Choose a base service…",
+            options=options,
+            min_values=1,
+            max_values=1
+            custom_id="base_service_select"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        user = interaction.user
+        choice = self.values[0]
+
+        # Get or create category
+        category = discord.utils.get(guild.categories, name=TICKET_CATEGORY_NAME)
+        if not category:
+            category = await guild.create_category(TICKET_CATEGORY_NAME)
+
+        # Decide role & naming
+        if choice == "halloween":
+            role = discord.utils.get(guild.roles, name=HALLOWEEN_ROLE_ID)
+            channel_name = f"🎃-halloween-{user.name}".lower()
+            title = "🎃 Halloween Base Ticket"
+            color = discord.Color.orange()
+        else:
+            role = discord.utils.get(guild.roles, name=AQUA_ROLE_ID)
+            channel_name = f"🌊-aqua-{user.name}".lower()
+            title = "🌊 Aqua Base Ticket"
+            color = discord.Color.blue()
+
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+            guild.me: discord.PermissionOverwrite(view_channel=True)
+        }
+
+        channel = await guild.create_text_channel(
+            channel_name,
+            category=category,
+            overwrites=overwrites
+        )
+
+        embed = discord.Embed(
+            title=title,
+            description=f"Welcome {user.mention}!\nA provider will assist you shortly 💬",
+            color=color
+        )
+
+        await channel.send(
+            content=role.mention if role else None,
+            embed=embed
+        )
+
+        await interaction.response.send_message(
+            f"✅ Ticket created: {channel.mention}",
+            ephemeral=True
+        )
+
+
+class BasePanelView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(BaseServiceSelect())
+# =================================================
+
+
+# ===================== COMMAND ====================
+@bot.command(name="basepanel")
+@commands.has_permissions(administrator=True)
+async def basepanel(ctx):
+    embed = discord.Embed(
+        title="🛠️ Base Services Panel",
+        description=(
+            "Select the base service you need?\n\n"
+            "🎃 **Halloween Base Service**\n"
+            "🌊 **Aqua Base Service**"
+        ),
+        color=discord.Color.purple()
+    )
+
+    await ctx.send(embed=embed, view=BasePanelView())
+
+
 # Events
 @bot.event
 async def on_ready():
@@ -325,6 +434,7 @@ async def on_ready():
     bot.add_view(TierSelectView())
     bot.add_view(MMTicketView())
     bot.add_view(GiveawayView(0))
+    bot.add_view(BasePanelView())
     
 # Load saved data
     load_data()
