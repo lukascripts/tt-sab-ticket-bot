@@ -343,25 +343,21 @@ class BaseServiceSelect(Select):
             min_values=1,
             max_values=1
         )
+       async def callback(self, interaction: 
+       discord.Interaction):
+               guild = interaction.guild
+               user = interaction.user
+               choice = self.values[0]
 
-    async def callback(self, interaction: discord.Interaction):
-        guild = interaction.guild
-        user = interaction.user
-        choice = self.values[0]
-
-        # Get or create category
         category = discord.utils.get(guild.categories, name=TICKET_CATEGORY_NAME)
         if not category:
             category = await guild.create_category(TICKET_CATEGORY_NAME)
 
-        # Decide role & naming
         if choice == "halloween":
-            role = discord.utils.get(guild.roles, name=BASE_PROVIDER_ROLE_ID)
             channel_name = f"ticket-halloween🎃{user.name}".lower()
             title = "🎃 Halloween Base Ticket"
             color = discord.Color.orange()
         else:
-            role = discord.utils.get(guild.roles, name=BASE_PROVIDER_ROLE_ID)
             channel_name = f"ticket-aqua🌊{user.name}".lower()
             title = "🌊 Aqua Base Ticket"
             color = discord.Color.blue()
@@ -377,6 +373,26 @@ class BaseServiceSelect(Select):
             category=category,
             overwrites=overwrites
         )
+
+        embed = discord.Embed(
+            title=title,
+            description=f"Welcome {user.mention}!\nA provider will assist you shortly 💬",
+            color=color
+        )
+
+        role = interaction.guild.get_role(BASE_PROVIDER_ROLE_ID)
+
+        await channel.send(
+            content=role.mention if role else "⚠️ Role not found",
+            embed=embed,
+            allowed_mentions=discord.AllowedMentions(roles=True)
+        )
+
+        await interaction.response.send_message(
+            f"✅ Ticket created: {channel.mention}",
+            ephemeral=True
+            )
+    
 
         embed = discord.Embed(
             title=title,
@@ -417,7 +433,7 @@ async def basepanel(ctx):
         color=discord.Color.purple()
     )
     
-    await ctx.send(embed=embed, view=BasePanelView())
+    await ctx.send(embed=embed, view=BasePanelView()),
 
 
 # Events
