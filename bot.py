@@ -358,7 +358,18 @@ async def help_command(ctx):
 
     await ctx.reply(embed=embed)
 
+@bot.command(name='saythis')
+async def say(ctx, channel: discord.TextChannel, *, message: str):
+    """Make the bot say something in a channel
+    Usage: $say #channel Hello world
+    """
 
+    OWNER_ID = 1302769760655769671  # put your ID here
+    if ctx.author.id != OWNER_ID:
+        return
+
+    await channel.send(message)
+    await ctx.message.delete()
 
 # ===== COINFLIP COMMANDS - ADD THESE TO YOUR EXISTING BOT =====
 
