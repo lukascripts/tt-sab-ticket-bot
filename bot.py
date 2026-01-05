@@ -343,11 +343,10 @@ class BaseServiceSelect(Select):
             min_values=1,
             max_values=1
         )
-       async def callback(self, interaction: 
-       discord.Interaction):
-               guild = interaction.guild
-               user = interaction.user
-               choice = self.values[0]
+       async def callback(self, interaction: discord.Interaction):
+       guild = interaction.guild
+       user = interaction.user
+       choice = self.values[0]
 
         category = discord.utils.get(guild.categories, name=TICKET_CATEGORY_NAME)
         if not category:
