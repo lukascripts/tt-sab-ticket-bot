@@ -1501,8 +1501,8 @@ async def new_ticket(ctx, ticket_type: str = None):
 @bot.command(name='close')
 async def close_command(ctx):
     if not ctx.channel.name.startswith('ticket-'):
-    await ctx.reply('❌ This command can only be used in ticket channels!')
-    return
+        await ctx.reply('❌ This command can only be used in ticket channels!')
+        return
 
     embed = discord.Embed(
         title='⚠️ Close Ticket',
