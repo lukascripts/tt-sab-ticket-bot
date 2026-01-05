@@ -358,12 +358,12 @@ class BaseServiceSelect(Select):
         # Decide role & naming
         if choice == "halloween":
             role = discord.utils.get(guild.roles, name=HALLOWEEN_ROLE_ID)
-            channel_name = f"ticket-{user.name}-halloween".lower()
+            channel_name = f"ticket-{user.name}".lower()
             title = "🎃 Halloween Base Ticket"
             color = discord.Color.orange()
         else:
             role = discord.utils.get(guild.roles, name=AQUA_ROLE_ID)
-            channel_name = f"ticket-{user.name}-aqua".lower()
+            channel_name = f"ticket-{user.name}".lower()
             title = "🌊 Aqua Base Ticket"
             color = discord.Color.blue()
 
