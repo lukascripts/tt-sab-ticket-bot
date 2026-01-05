@@ -386,10 +386,11 @@ class BaseServiceSelect(Select):
         )
 
         await channel.send(
-            content=role.mention if role else None,
-            embed=embed
+    content=role.mention if role else "⚠️ Role not found",
+    embed=embed,
+    allowed_mentions=discord.AllowedMentions(roles=True)
         )
-
+        
         await interaction.response.send_message(
             f"✅ Ticket created: {channel.mention}",
             ephemeral=True
@@ -402,6 +403,25 @@ class BasePanelView(View):
         self.add_item(BaseServiceSelect())
 # =================================================
 
+class CloseTicketView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Close Ticket",
+        style=discord.ButtonStyle.danger,
+        emoji="🔒",
+        custom_id="close_ticket_button"
+    )
+    async def close_ticket(self, interaction: discord.Interaction, button: Button):
+        channel = interaction.channel
+
+        await interaction.response.send_message(
+            "🔒 Closing ticket...",
+            ephemeral=True
+        )
+
+        await channel.delete()
 
 # ===================== COMMAND ====================
 @bot.command(name="basepanel")
@@ -416,7 +436,7 @@ async def basepanel(ctx):
         ),
         color=discord.Color.purple()
     )
-
+    await channel.send(view=CloseTicketView())
     await ctx.send(embed=embed, view=BasePanelView())
 
 
