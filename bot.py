@@ -343,10 +343,63 @@ class BaseServiceSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        # TEMP CONFIRMATION (no ticket logic yet)
-        await interaction.response.send_message(
-            "✅ Dropdown works (ticket logic comes next)",
-            ephemeral=True
+    guild = interaction.guild
+    user = interaction.user
+    choice = self.values[0]
+
+    # Get or create ticket category
+    category = discord.utils.get(guild.categories, name=TICKET_CATEGORY_NAME)
+    if category is None:
+        category = await guild.create_category(TICKET_CATEGORY_NAME)
+
+    # Ticket type
+    if choice == "halloween":
+        channel_name = f"ticket-halloween-{user.name}".lower()
+        title = "🎃 Halloween Base Ticket"
+        color = discord.Color.orange()
+    else:
+        channel_name = f"ticket-aqua-{user.name}".lower()
+        title = "🌊 Aqua Base Ticket"
+        color = discord.Color.blue()
+
+    # Permissions
+    overwrites = {
+        guild.default_role: discord.PermissionOverwrite(view_channel=False),
+        user: discord.PermissionOverwrite(
+            view_channel=True,
+            send_messages=True,
+            read_message_history=True
+        ),
+        guild.me: discord.PermissionOverwrite(view_channel=True)
+    }
+
+    # Create channel
+    channel = await guild.create_text_channel(
+        channel_name,
+        category=category,
+        overwrites=overwrites
+    )
+
+    # Embed
+    embed = discord.Embed(
+        title=title,
+        description=f"Welcome {user.mention}!\nA provider will assist you shortly 💬",
+        color=color
+    )
+
+    # Ping provider role
+    role = guild.get_role(BASE_PROVIDER_ROLE_ID)
+
+    await channel.send(
+        content=role.mention if role else "⚠️ Provider role not found",
+        embed=embed,
+        allowed_mentions=discord.AllowedMentions(roles=True)
+    )
+
+    # Confirm to user
+    await interaction.response.send_message(
+        f"✅ Ticket created: {channel.mention}",
+        ephemeral=True
         )
 
 
