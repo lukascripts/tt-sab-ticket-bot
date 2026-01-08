@@ -429,7 +429,7 @@ async def basepanel(ctx):
 async def on_ready():
     print(f'✅ Bot is online as {bot.user}')
     print(f'📊 Serving {len(bot.guilds)} servers')
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name='Tr1al's Mm Official Bot'))
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name='$help | Ticket System'))
 
     # Add persistent views
     bot.add_view(TicketButtons())
