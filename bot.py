@@ -79,11 +79,10 @@ TICKET_TYPES = {
 
 # MM Tier definitions
 MM_TIERS = {
-    'trial': {'name': 'Trial Middleman', 'range': 'Up to 100m/s'},
-    'middleman': {'name': 'Middleman', 'range': '100m/s - 250m/s'},
-    'pro': {'name': 'Pro Middleman', 'range': '250m/s - 500m/s'},
-    'head': {'name': 'Head Middleman', 'range': '500m/s+'},
-    'owner': {'name': 'Owner', 'range': '500m/s+ (fee required)'}
+    'trial': {'name': '0-100m middleman', 'range': 'Up to 100m/s'},
+    'middleman': {'name': '100-500m middleman', 'range': '100m/s - 500m/s'},
+    'pro': {'name': '500m+ middleman', 'range': '500m/s+'},
+    'head': {'name': 'All Trades Middleman', 'range': 'all trades middleman'},
 }
 
 MM_TICKET_ROLE_MAP = {
@@ -91,7 +90,6 @@ MM_TICKET_ROLE_MAP = {
     "middleman": "middleman",
     "pro middleman": "pro",
     "head middleman": "head",
-    "owner middleman": "owner"
 }
 
 MM_ROLE_IDS = {
@@ -99,7 +97,6 @@ MM_ROLE_IDS = {
     "middleman": 1434610759140118640,  # Middleman role ID
     "pro": 1453757157144137911,        # Pro MM role ID
     "head": 1453757225267892276,       # Head MM role ID
-    "owner": 1448796685672386712     # Owner role ID
 }
 
 # Save and Load Data Functions
@@ -214,34 +211,28 @@ class TierSelect(Select):
     def __init__(self):
         options = [
             discord.SelectOption(
-                label='Trial Middleman',
+                label='0-100m/s Middleman',
                 description='Up to 100m/s',
                 value='trial',
                 emoji='🆕'
             ),
             discord.SelectOption(
-                label='Middleman',
+                label='100-500m/s Middleman',
                 description='100m/s - 250m/s',
                 value='middleman',
                 emoji='⚖️'
             ),
             discord.SelectOption(
-                label='Pro Middleman',
+                label='500m/s+ Middleman',
                 description='250m/s - 500m/s',
                 value='pro',
                 emoji='⭐'
             ),
             discord.SelectOption(
-                label='Head Middleman',
+                label='All Trades Middleman',
                 description='500m/s+',
                 value='head',
                 emoji='👑'
-            ),
-            discord.SelectOption(
-                label='Owner',
-                description='500m/s+ (fee required)',
-                value='owner',
-                emoji='💎'
             )
         ]
         
@@ -438,7 +429,7 @@ async def basepanel(ctx):
 async def on_ready():
     print(f'✅ Bot is online as {bot.user}')
     print(f'📊 Serving {len(bot.guilds)} servers')
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name='$help | Ticket System'))
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name='Tr1al's Mm Official Bot'))
 
     # Add persistent views
     bot.add_view(TicketButtons())
@@ -1535,8 +1526,7 @@ class MMTicketView(View):
             1453757017218093239,  # Trial MM
             1434610759140118640,  # Middleman
             1453757157144137911,  # Pro MM
-            1453757225267892276,  # Head MM
-            1448796685672386712   # Owner
+            1453757225267892276   # Head MM
         ]
         
         user_role_ids = [role.id for role in interaction.user.roles]
@@ -1750,7 +1740,6 @@ async def stats(ctx):
     embed.add_field(name='✅ Claimed Tickets', value=f'`{len(claimed)}`', inline=True)
     embed.add_field(name='⏳ Unclaimed Tickets', value=f'`{len(tickets) - len(claimed)}`', inline=True)
     embed.set_footer(text=f'Requested by {ctx.author}', icon_url=ctx.author.display_avatar.url)
-    embed.timestamp = datetime.utcnow()
 
     await ctx.reply(embed=embed)
 
@@ -1820,7 +1809,6 @@ async def proof_command(ctx):
     # Add ticket info
     ticket_number = ctx.channel.name.split('-')[1] if len(ctx.channel.name.split('-')) > 1 else 'Unknown'
     embed.set_footer(text=f'Ticket #{ticket_number} | {datetime.utcnow().strftime("%B %d, %Y at %I:%M %p")}')
-    embed.timestamp = datetime.utcnow()
     
     # Send to mm-proofs channel
     await proof_channel.send(embed=embed)
@@ -1920,8 +1908,7 @@ async def create_ticket_with_details(guild, user, ticket_type, tier, trader, giv
             1453757017218093239,  # Trial MM
             1434610759140118640,  # Middleman
             1453757157144137911,  # Pro MM
-            1453757225267892276,  # Head MM
-            1448796685672386712   # Owner
+            1453757225267892276   # Head MM
         ]
         
         # Create base overwrites
@@ -2138,7 +2125,7 @@ async def mm_role(ctx, tier: str, role: discord.Role):
     """Set which role gets pinged for each MM tier"""
     tier = tier.lower()
     
-    valid_tiers = ['trial', 'middleman', 'pro', 'head', 'owner']
+    valid_tiers = ['trial', 'middleman', 'pro', 'head']
     if tier not in valid_tiers:
         embed = discord.Embed(
             title='❌ Invalid Tier',
@@ -2178,7 +2165,7 @@ async def mm_roles_list(ctx):
         embed.description = 'No MM tier roles configured yet.\n\nUse `$mmrole <tier> <role>` to set them.'
     else:
         found_any = False
-        for tier in ['trial', 'middleman', 'pro', 'head', 'owner']:
+        for tier in ['trial', 'middleman', 'pro', 'head']:
             tier_key = f'middleman_{tier}'
             if tier_key in ticket_roles[guild_id]:
                 role_id = ticket_roles[guild_id][tier_key]
