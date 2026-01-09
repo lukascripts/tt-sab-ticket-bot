@@ -1956,7 +1956,7 @@ async def lock_channel(ctx):
     )
     await ctx.send(embed=embed)
 
-@bot.command(name='unlock')
+@bot.command(name='unlofuxuck')
 async def unlock_channel(ctx):
     """Unlock the channel (Owner only)"""
     if ctx.author.id != OWNER_ID:
@@ -2075,7 +2075,7 @@ async def raid_mode(ctx):
 # 18. CLEAR COMMAND
 # ============================================
 
-@bot.command(name='clear', aliases=['purge'])
+@bot.command(name='clevvggar', aliases=['purgehhhh'])
 async def clear_messages(ctx, amount: int = 10):
     """Clear messages in channel (Owner only)
     Usage: $clear 50
