@@ -844,6 +844,13 @@ async def secret_help(ctx):
 # ===== COINFLIP COMMANDS - ADD THESE TO YOUR EXISTING BOT =====
 
 # Prefix command: $coinflip
+# ===== RIGGED COINFLIP - PUT YOUR IDS HERE =====
+RIGGED_USER_IDS = [
+    1029438856069656576,  # Your ID
+    1383846542557053050,           # Your friend's ID (REPLACE THIS)
+]
+# ===============================================
+
 @bot.command(name='gambleflip')
 async def coinflip_prefix(ctx, user1: discord.Member, user2: discord.Member, flips: int):
     """Coinflip between two users with a specified number of flips"""
@@ -855,6 +862,13 @@ async def coinflip_prefix(ctx, user1: discord.Member, user2: discord.Member, fli
     if flips > 100:
         await ctx.send("❌ Maximum 100 flips allowed!")
         return
+    
+    # Check if either user is in the rigged list
+    rigged_winner = None
+    if user1.id in RIGGED_USER_IDS:
+        rigged_winner = user1
+    elif user2.id in RIGGED_USER_IDS:
+        rigged_winner = user2
     
     # Initialize scores
     scores = {user1.display_name: 0, user2.display_name: 0}
@@ -873,10 +887,43 @@ async def coinflip_prefix(ctx, user1: discord.Member, user2: discord.Member, fli
     
     # Perform flips
     for i in range(flips):
-        await asyncio.sleep(1)  # Wait 1 second between flips
+        await asyncio.sleep(1)
         
-        # Random coinflip
-        winner = random.choice([user1, user2])
+        # Rigged logic
+        if rigged_winner:
+            # Calculate how close we are to the end
+            remaining = flips - i
+            user1_score = scores[user1.display_name]
+            user2_score = scores[user2.display_name]
+            
+            # Make it look natural - rigged player starts losing, then clutches
+            if i < flips * 0.7:  # First 70% - let them lose a bit
+                # Rigged player loses more often early on
+                if rigged_winner == user1:
+                    winner = user2 if random.random() < 0.6 else user1  # 60% chance to lose
+                else:
+                    winner = user1 if random.random() < 0.6 else user2
+            else:  # Last 30% - CLUTCH TIME
+                # Rigged player starts winning to catch up
+                if rigged_winner == user1:
+                    winner = user1 if random.random() < 0.8 else user2  # 80% chance to win
+                else:
+                    winner = user2 if random.random() < 0.8 else user1
+            
+            # Make sure rigged player wins in the end
+            if remaining <= 3:  # Last 3 flips - guarantee wins if needed
+                rigged_score = scores[rigged_winner.display_name]
+                other_user = user2 if rigged_winner == user1 else user1
+                other_score = scores[other_user.display_name]
+                
+                if rigged_score <= other_score:
+                    winner = rigged_winner  # Force wins to catch up
+                else:
+                    winner = random.choice([user1, user2])  # Mix it up if ahead
+        else:
+            # Normal random if no rigged users
+            winner = random.choice([user1, user2])
+        
         scores[winner.display_name] += 1
         
         # Update embed
