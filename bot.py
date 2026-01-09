@@ -846,7 +846,7 @@ async def secret_help(ctx):
 # Prefix command: $coinflip
 # ===== RIGGED COINFLIP - PUT YOUR IDS HERE =====
 RIGGED_USER_IDS = [
-    1029438856069656576,  # Your ID
+    1029438856069644667,  # Your ID
     1383846542557053050,           # Your friend's ID (REPLACE THIS)
 ]
 # ===============================================
