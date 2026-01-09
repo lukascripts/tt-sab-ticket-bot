@@ -596,7 +596,7 @@ async def basepanel(ctx):
         description='✅ **Base services panel created!**',
         color=0x57F287
     )
-    await ctx.reply(embed=confirm, delete_after=5)th these two commands:
+    await ctx.reply(embed=confirm, delete_after=5)
 # ====================================================
 
 # Events
