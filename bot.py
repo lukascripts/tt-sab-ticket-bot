@@ -725,17 +725,17 @@ async def on_member_join(member: discord.Member):
 # (after updating invite cache and saving to database)
 
 # Send invite tracker notification to dedicated channel
-if settings.get('invite_tracking_enabled') and inviter:
-    tracker_channel_id = settings.get('invite_tracker_channel_id')
-    if tracker_channel_id:
-        tracker_channel = guild.get_channel(tracker_channel_id)
-        if tracker_channel:
-            try:
-                # Create the message like invite tracker bot
-                tracker_msg = f"{member.mention} joined! Invited by {inviter.mention}"
-                await tracker_channel.send(tracker_msg)
-            except Exception as e:
-                logging.error(f"failed to send invite tracker message: {e}")
+    if settings.get('invite_tracking_enabled') and inviter:
+        tracker_channel_id = settings.get('invite_tracker_channel_id')
+        if tracker_channel_id:
+            tracker_channel = guild.get_channel(tracker_channel_id)
+            if tracker_channel:
+                try:
+                    # Create the message like invite tracker bot
+                    tracker_msg = f"{member.mention} joined! Invited by {inviter.mention}"
+                    await tracker_channel.send(tracker_msg)
+                except Exception as e:
+                    logging.error(f"failed to send invite tracker message: {e}")
     
     # auto-assign unverified role if verification is set up
     unverified_role_id = settings.get('unverified_role_id')
