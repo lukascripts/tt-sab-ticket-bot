@@ -121,22 +121,25 @@ class Database:
             # settings table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS bot_settings (
-                    guild_id BIGINT PRIMARY KEY,
-                    log_channel_id BIGINT,
-                    verified_role_id BIGINT,
-                    unverified_role_id BIGINT,
-                    verification_channel_id BIGINT,
-                    staff_role_id BIGINT,
-                    automod_enabled BOOLEAN DEFAULT TRUE,
-                    anti_raid_enabled BOOLEAN DEFAULT TRUE,
-                    anti_nuke_enabled BOOLEAN DEFAULT TRUE,
-                    welcome_channel_id BIGINT,
-                    leave_channel_id BIGINT,
-                    welcome_message TEXT,
-                    leave_message TEXT,
-                    invite_tracking_enabled BOOLEAN DEFAULT FALSE
-                )
-            """)
+                       guild_id BIGINT PRIMARY KEY,
+                       log_channel_id BIGINT,
+                       verified_role_id BIGINT,
+                       unverified_role_id BIGINT,
+                       verification_channel_id BIGINT,
+                       staff_role_id BIGINT,
+                       automod_enabled BOOLEAN DEFAULT TRUE,
+                       anti_raid_enabled BOOLEAN DEFAULT TRUE,
+                       anti_nuke_enabled BOOLEAN DEFAULT TRUE,
+                       welcome_channel_id BIGINT,
+                       leave_channel_id BIGINT,
+                       welcome_message TEXT,
+                       leave_message TEXT,
+                       invite_tracking_enabled BOOLEAN DEFAULT FALSE,
+                       invite_tracker_channel_id BIGINT
+                   )
+               """)
+
+
             
             # whitelist table
             cur.execute("""
@@ -352,29 +355,32 @@ class DataManager:
         self.db.execute("DELETE FROM warnings WHERE user_id = %s", (user_id,))
     
     # settings
-    def get_guild_settings(self, guild_id: int) -> Dict:
-        result = self.db.execute("""
-            SELECT * FROM bot_settings WHERE guild_id = %s
-        """, (guild_id,), fetch=True)
-        
-        if result:
-            row = result[0]
-            return {
-                'log_channel_id': row[1],
-                'verified_role_id': row[2],
-                'unverified_role_id': row[3],
-                'verification_channel_id': row[4],
-                'staff_role_id': row[5],
-                'automod_enabled': row[6],
-                'anti_raid_enabled': row[7],
-                'anti_nuke_enabled': row[8],
-                'welcome_channel_id': row[9],
-                'leave_channel_id': row[10],
-                'welcome_message': row[11],
-                'leave_message': row[12],
-                'invite_tracking_enabled': row[13]
-            }
-        return {}
+    # Replace the get_guild_settings method in DataManager class with this:
+
+def get_guild_settings(self, guild_id: int) -> Dict:
+    result = self.db.execute("""
+        SELECT * FROM bot_settings WHERE guild_id = %s
+    """, (guild_id,), fetch=True)
+    
+    if result:
+        row = result[0]
+        return {
+            'log_channel_id': row[1],
+            'verified_role_id': row[2],
+            'unverified_role_id': row[3],
+            'verification_channel_id': row[4],
+            'staff_role_id': row[5],
+            'automod_enabled': row[6],
+            'anti_raid_enabled': row[7],
+            'anti_nuke_enabled': row[8],
+            'welcome_channel_id': row[9],
+            'leave_channel_id': row[10],
+            'welcome_message': row[11],
+            'leave_message': row[12],
+            'invite_tracking_enabled': row[13],
+            'invite_tracker_channel_id': row[14]  # NEW
+        }
+    return {}
     
     def update_guild_setting(self, guild_id: int, setting: str, value):
         self.db.execute(f"""
@@ -401,7 +407,7 @@ def is_owner():
         if interaction.user.id != Config.OWNER_ID:
             await interaction.response.send_message(
                 "nah bro only the owner can do that",
-                ephemeral=True
+                 ephemeral=True
             )
             return False
         return True
@@ -714,6 +720,22 @@ async def on_member_join(member: discord.Member):
             
             # update invite cache
             await update_invites_cache(guild)
+
+    # Add this code RIGHT AFTER the invite tracking section in on_member_join
+# (after updating invite cache and saving to database)
+
+# Send invite tracker notification to dedicated channel
+if settings.get('invite_tracking_enabled') and inviter:
+    tracker_channel_id = settings.get('invite_tracker_channel_id')
+    if tracker_channel_id:
+        tracker_channel = guild.get_channel(tracker_channel_id)
+        if tracker_channel:
+            try:
+                # Create the message like invite tracker bot
+                tracker_msg = f"{member.mention} joined! Invited by {inviter.mention}"
+                await tracker_channel.send(tracker_msg)
+            except Exception as e:
+                logging.error(f"failed to send invite tracker message: {e}")
     
     # auto-assign unverified role if verification is set up
     unverified_role_id = settings.get('unverified_role_id')
@@ -736,35 +758,30 @@ async def on_member_join(member: discord.Member):
             [('user id', str(member.id)), ('reason', reason)]
         )
     
+    
+
     # send welcome message
     welcome_channel_id = settings.get('welcome_channel_id')
     if welcome_channel_id:
         welcome_channel = guild.get_channel(welcome_channel_id)
         if welcome_channel:
-            # get custom message or use default
-            message = settings.get('welcome_message') or "hey {user}! welcome to {server}!"
             
+            # get custom message or use default
+            message = settings.get('welcome_message') or "Welcome {user} to **{server}**!"
+        
             # replace placeholders
             message = message.replace('{user}', member.mention)
             message = message.replace('{server}', guild.name)
             message = message.replace('{count}', str(guild.member_count))
-            
+        
             if inviter:
                 message = message.replace('{inviter}', inviter.mention)
             else:
                 message = message.replace('{inviter}', 'unknown')
-            
+        
             try:
-                embed = discord.Embed(
-                    description=message,
-                    color=discord.Color.green()
-                )
-                embed.set_thumbnail(url=member.display_avatar.url)
-                
-                if settings.get('invite_tracking_enabled') and inviter:
-                    embed.set_footer(text=f"invited by {inviter.name}")
-                
-                await welcome_channel.send(embed=embed)
+               # Send plain text message, no embed!
+               await welcome_channel.send(message)
             except Exception as e:
                 logging.error(f"failed to send welcome message: {e}")
     
@@ -848,29 +865,26 @@ async def on_member_remove(member: discord.Member):
     guild = member.guild
     settings = data_manager.get_guild_settings(guild.id)
     
-    # send leave message
-    leave_channel_id = settings.get('leave_channel_id')
-    if leave_channel_id:
-        leave_channel = guild.get_channel(leave_channel_id)
-        if leave_channel:
-            # get custom message or use default
-            message = settings.get('leave_message') or "{user} just left us... rip"
-            
-            # replace placeholders
-            message = message.replace('{user}', member.name)
-            message = message.replace('{server}', guild.name)
-            message = message.replace('{count}', str(guild.member_count))
-            
-            try:
-                embed = discord.Embed(
-                    description=message,
-                    color=discord.Color.red()
-                )
-                embed.set_thumbnail(url=member.display_avatar.url)
-                
-                await leave_channel.send(embed=embed)
-            except Exception as e:
-                logging.error(f"failed to send leave message: {e}")
+    # Replace the leave message section in on_member_remove with this:
+
+# send leave message
+leave_channel_id = settings.get('leave_channel_id')
+if leave_channel_id:
+    leave_channel = guild.get_channel(leave_channel_id)
+    if leave_channel:
+        # get custom message or use default
+        message = settings.get('leave_message') or "**{user}** just left us... rip"
+        
+        # replace placeholders
+        message = message.replace('{user}', member.name)
+        message = message.replace('{server}', guild.name)
+        message = message.replace('{count}', str(guild.member_count))
+        
+        try:
+            # Send plain text message, no embed!
+            await leave_channel.send(message)
+        except Exception as e:
+            logging.error(f"failed to send leave message: {e}")
     
     # log it
     await log_action(
@@ -966,6 +980,21 @@ async def invite_tracking(ctx, mode: str):
     else:
         await ctx.send('use `+invitetracking on` or `+invitetracking off`')
 
+# Add this command with the other invite tracking commands
+
+@bot.command(name='setinvitetracker')
+@is_owner_or_admin()
+async def set_invite_tracker(ctx, channel: discord.TextChannel):
+    """set the channel where invite tracking messages appear"""
+    data_manager.update_guild_setting(ctx.guild.id, 'invite_tracker_channel_id', channel.id)
+    
+    embed = discord.Embed(
+        title='invite tracker channel set!',
+        description=f'invite notifications will be sent to {channel.mention}',
+        color=discord.Color.green()
+    )
+    await ctx.send(embed=embed)
+
 @bot.command(name='invites')
 async def check_invites(ctx, member: discord.Member = None):
     """check how many people someone invited"""
@@ -1030,6 +1059,8 @@ async def who_invited(ctx, member: discord.Member):
         await ctx.send(embed=embed)
     else:
         await ctx.send(f'couldnt find who invited {member.mention}')
+
+
 
 """
 Part 3: Moderation Commands
@@ -2622,7 +2653,7 @@ async def help_cmd(ctx):
         
         embed.add_field(
             name='📊 invite tracking',
-            value='`+invitetracking` `+invites` `+whoinvited`',
+            value='`+invitetracking` `+invites` +setinvitetracker` +whoinvited`',
             inline=False
         )
     
