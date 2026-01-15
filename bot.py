@@ -865,26 +865,24 @@ async def on_member_remove(member: discord.Member):
     guild = member.guild
     settings = data_manager.get_guild_settings(guild.id)
     
-    # Replace the leave message section in on_member_remove with this:
-
-# send leave message
-leave_channel_id = settings.get('leave_channel_id')
-if leave_channel_id:
-    leave_channel = guild.get_channel(leave_channel_id)
-    if leave_channel:
-        # get custom message or use default
-        message = settings.get('leave_message') or "**{user}** just left us... rip"
-        
-        # replace placeholders
-        message = message.replace('{user}', member.name)
-        message = message.replace('{server}', guild.name)
-        message = message.replace('{count}', str(guild.member_count))
-        
-        try:
-            # Send plain text message, no embed!
-            await leave_channel.send(message)
-        except Exception as e:
-            logging.error(f"failed to send leave message: {e}")
+    # send leave message (PLAIN TEXT - NO EMBED)
+    leave_channel_id = settings.get('leave_channel_id')
+    if leave_channel_id:
+        leave_channel = guild.get_channel(leave_channel_id)
+        if leave_channel:
+            # get custom message or use default
+            message = settings.get('leave_message') or "**{user}** just left us... rip"
+            
+            # replace placeholders
+            message = message.replace('{user}', member.name)
+            message = message.replace('{server}', guild.name)
+            message = message.replace('{count}', str(guild.member_count))
+            
+            try:
+                # Send plain text message, no embed!
+                await leave_channel.send(message)
+            except Exception as e:
+                logging.error(f"failed to send leave message: {e}")
     
     # log it
     await log_action(
