@@ -1489,7 +1489,7 @@ async def unlockdown_cmd(ctx):
     except Exception as e:
         await ctx.send(f'failed to end lockdown: {e}')
 
-  """
+"""
 Part 4: Auto-Moderation & Message Filtering
 automatic protection from spam, profanity, and bad stuff
 """
