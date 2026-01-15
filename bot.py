@@ -417,7 +417,7 @@ class MMTicketView(View):
         await interaction.response.defer()
         await close_ticket(interaction.channel, interaction.user)
 
-    async def create_ticket(guild, user, ticket_type):
+async def create_ticket(guild, user, ticket_type):
     try:
         ticket_info = ticket_types[ticket_type]
         
