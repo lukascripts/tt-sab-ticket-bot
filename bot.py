@@ -248,7 +248,7 @@ class Database:
             self.conn.rollback()
             return None
 
-class DataManager:
+    class DataManager:
     """handles all the data stuff with postgres"""
     
     def __init__(self):
@@ -354,64 +354,74 @@ class DataManager:
     def clear_warnings(self, user_id: int):
         self.db.execute("DELETE FROM warnings WHERE user_id = %s", (user_id,))
     
-    # settings
+    # settings - FIXED VERSION
     def get_guild_settings(self, guild_id: int) -> Dict:
-    """Get guild settings from database"""
-    result = self.db.execute("""
-        SELECT log_channel_id, verified_role_id, unverified_role_id, 
-               verification_channel_id, staff_role_id, automod_enabled,
-               anti_raid_enabled, anti_nuke_enabled, welcome_channel_id,
-               leave_channel_id, welcome_message, leave_message,
-               invite_tracking_enabled, invite_tracker_channel_id
-        FROM bot_settings 
-        WHERE guild_id = %s
-    """, (guild_id,), fetch=True)
-    
-    if result and len(result) > 0:
-        row = result[0]
+        """Get guild settings from database"""
+        try:
+            result = self.db.execute("""
+                SELECT log_channel_id, verified_role_id, unverified_role_id, 
+                       verification_channel_id, staff_role_id, automod_enabled,
+                       anti_raid_enabled, anti_nuke_enabled, welcome_channel_id,
+                       leave_channel_id, welcome_message, leave_message,
+                       invite_tracking_enabled, invite_tracker_channel_id
+                FROM bot_settings 
+                WHERE guild_id = %s
+            """, (guild_id,), fetch=True)
+            
+            if result and len(result) > 0:
+                row = result[0]
+                return {
+                    'log_channel_id': row[0],
+                    'verified_role_id': row[1],
+                    'unverified_role_id': row[2],
+                    'verification_channel_id': row[3],
+                    'staff_role_id': row[4],
+                    'automod_enabled': row[5] if row[5] is not None else True,
+                    'anti_raid_enabled': row[6] if row[6] is not None else True,
+                    'anti_nuke_enabled': row[7] if row[7] is not None else True,
+                    'welcome_channel_id': row[8],
+                    'leave_channel_id': row[9],
+                    'welcome_message': row[10],
+                    'leave_message': row[11],
+                    'invite_tracking_enabled': row[12] if row[12] is not None else False,
+                    'invite_tracker_channel_id': row[13]
+                }
+        except Exception as e:
+            logging.error(f"Error getting guild settings: {e}")
+        
+        # Return defaults if no settings found or error occurred
         return {
-            'log_channel_id': row[0],
-            'verified_role_id': row[1],
-            'unverified_role_id': row[2],
-            'verification_channel_id': row[3],
-            'staff_role_id': row[4],
-            'automod_enabled': row[5] if row[5] is not None else True,
-            'anti_raid_enabled': row[6] if row[6] is not None else True,
-            'anti_nuke_enabled': row[7] if row[7] is not None else True,
-            'welcome_channel_id': row[8],
-            'leave_channel_id': row[9],
-            'welcome_message': row[10],
-            'leave_message': row[11],
-            'invite_tracking_enabled': row[12] if row[12] is not None else False,
-            'invite_tracker_channel_id': row[13]
+            'log_channel_id': None,
+            'verified_role_id': None,
+            'unverified_role_id': None,
+            'verification_channel_id': None,
+            'staff_role_id': None,
+            'automod_enabled': True,
+            'anti_raid_enabled': True,
+            'anti_nuke_enabled': True,
+            'welcome_channel_id': None,
+            'leave_channel_id': None,
+            'welcome_message': None,
+            'leave_message': None,
+            'invite_tracking_enabled': False,
+            'invite_tracker_channel_id': None
         }
     
-    # Return defaults if no settings found
-    return {
-        'log_channel_id': None,
-        'verified_role_id': None,
-        'unverified_role_id': None,
-        'verification_channel_id': None,
-        'staff_role_id': None,
-        'automod_enabled': True,
-        'anti_raid_enabled': True,
-        'anti_nuke_enabled': True,
-        'welcome_channel_id': None,
-        'leave_channel_id': None,
-        'welcome_message': None,
-        'leave_message': None,
-        'invite_tracking_enabled': False,
-        'invite_tracker_channel_id': None
-    }
-        
-    
     def update_guild_setting(self, guild_id: int, setting: str, value):
+        """Update a specific guild setting"""
         self.db.execute(f"""
             INSERT INTO bot_settings (guild_id, {setting})
             VALUES (%s, %s)
             ON CONFLICT (guild_id)
             DO UPDATE SET {setting} = %s
         """, (guild_id, value, value))
+    
+    def clear_warnings(self, user_id: int):
+        self.db.execute("DELETE FROM warnings WHERE user_id = %s", (user_id,))
+    
+    # settings
+    def get_guild_settings(self, guild_id: int) -> Dict:
+
 
 # bot setup
 intents = discord.Intents.all()
