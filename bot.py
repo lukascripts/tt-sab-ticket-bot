@@ -248,7 +248,8 @@ class Database:
             self.conn.rollback()
             return None
 
-    class DataManager:
+class DataManager:
+    """handles all the data stuff with postgres"""
     
     def __init__(self):
         self.db = Database()
@@ -284,7 +285,6 @@ class Database:
         if result:
             self.user_violations = defaultdict(int, {row[0]: row[1] for row in result})
     
-    # whitelist stuff
     def add_to_whitelist(self, user_id: int):
         self.whitelist.add(user_id)
         self.blacklist.discard(user_id)
@@ -298,7 +298,6 @@ class Database:
     def is_whitelisted(self, user_id: int) -> bool:
         return user_id in self.whitelist
     
-    # blacklist stuff
     def add_to_blacklist(self, user_id: int):
         self.blacklist.add(user_id)
         self.whitelist.discard(user_id)
@@ -312,7 +311,6 @@ class Database:
     def is_blacklisted(self, user_id: int) -> bool:
         return user_id in self.blacklist
     
-    # violations
     def add_violation(self, user_id: int):
         self.user_violations[user_id] += 1
         count = self.user_violations[user_id]
@@ -325,7 +323,6 @@ class Database:
         self.user_violations[user_id] = 0
         self.db.execute("DELETE FROM violations WHERE user_id = %s", (user_id,))
     
-    # warnings
     def add_warning(self, user_id: int, reason: str, moderator_id: int):
         self.db.execute("""
             INSERT INTO warnings (user_id, reason, moderator_id)
@@ -353,7 +350,6 @@ class Database:
     def clear_warnings(self, user_id: int):
         self.db.execute("DELETE FROM warnings WHERE user_id = %s", (user_id,))
     
-    # settings - FIXED VERSION
     def get_guild_settings(self, guild_id: int) -> Dict:
         """Get guild settings from database"""
         try:
@@ -388,7 +384,6 @@ class Database:
         except Exception as e:
             logging.error(f"Error getting guild settings: {e}")
         
-        # Return defaults if no settings found or error occurred
         return {
             'log_channel_id': None,
             'verified_role_id': None,
