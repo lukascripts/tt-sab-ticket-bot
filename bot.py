@@ -355,32 +355,32 @@ class DataManager:
         self.db.execute("DELETE FROM warnings WHERE user_id = %s", (user_id,))
     
     # settings
-    # Replace the get_guild_settings method in DataManager class with this:
-# settings
-    def get_guild_settings(self, guild_id: int) -> Dict:
-        result = self.db.execute("""
-            SELECT * FROM bot_settings WHERE guild_id = %s
-        """, (guild_id,), fetch=True)
+def get_guild_settings(self, guild_id: int) -> Dict:
+    result = self.db.execute("""
+        SELECT * FROM bot_settings WHERE guild_id = %s
+    """, (guild_id,), fetch=True)
+    
+    if result:
+        row = result[0]
+        # Safe access with defaults for missing columns
+        return {
+            'log_channel_id': row[1] if len(row) > 1 else None,
+            'verified_role_id': row[2] if len(row) > 2 else None,
+            'unverified_role_id': row[3] if len(row) > 3 else None,
+            'verification_channel_id': row[4] if len(row) > 4 else None,
+            'staff_role_id': row[5] if len(row) > 5 else None,
+            'automod_enabled': row[6] if len(row) > 6 else True,
+            'anti_raid_enabled': row[7] if len(row) > 7 else True,
+            'anti_nuke_enabled': row[8] if len(row) > 8 else True,
+            'welcome_channel_id': row[9] if len(row) > 9 else None,
+            'leave_channel_id': row[10] if len(row) > 10 else None,
+            'welcome_message': row[11] if len(row) > 11 else None,
+            'leave_message': row[12] if len(row) > 12 else None,
+            'invite_tracking_enabled': row[13] if len(row) > 13 else False,
+            'invite_tracker_channel_id': row[14] if len(row) > 14 else None
+        }
+    return {}
         
-        if result:
-            row = result[0]
-            return {
-                'log_channel_id': row[1],
-                'verified_role_id': row[2],
-                'unverified_role_id': row[3],
-                'verification_channel_id': row[4],
-                'staff_role_id': row[5],
-                'automod_enabled': row[6],
-                'anti_raid_enabled': row[7],
-                'anti_nuke_enabled': row[8],
-                'welcome_channel_id': row[9],
-                'leave_channel_id': row[10],
-                'welcome_message': row[11],
-                'leave_message': row[12],
-                'invite_tracking_enabled': row[13],
-                'invite_tracker_channel_id': row[14]
-            }
-        return {}
     
     def update_guild_setting(self, guild_id: int, setting: str, value):
         self.db.execute(f"""
