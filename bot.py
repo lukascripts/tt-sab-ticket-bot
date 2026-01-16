@@ -356,31 +356,31 @@ class DataManager:
     
     # settings
     # Replace the get_guild_settings method in DataManager class with this:
-
-def get_guild_settings(self, guild_id: int) -> Dict:
-    result = self.db.execute("""
-        SELECT * FROM bot_settings WHERE guild_id = %s
-    """, (guild_id,), fetch=True)
-    
-    if result:
-        row = result[0]
-        return {
-            'log_channel_id': row[1],
-            'verified_role_id': row[2],
-            'unverified_role_id': row[3],
-            'verification_channel_id': row[4],
-            'staff_role_id': row[5],
-            'automod_enabled': row[6],
-            'anti_raid_enabled': row[7],
-            'anti_nuke_enabled': row[8],
-            'welcome_channel_id': row[9],
-            'leave_channel_id': row[10],
-            'welcome_message': row[11],
-            'leave_message': row[12],
-            'invite_tracking_enabled': row[13],
-            'invite_tracker_channel_id': row[14]  # NEW
-        }
-    return {}
+# settings
+    def get_guild_settings(self, guild_id: int) -> Dict:
+        result = self.db.execute("""
+            SELECT * FROM bot_settings WHERE guild_id = %s
+        """, (guild_id,), fetch=True)
+        
+        if result:
+            row = result[0]
+            return {
+                'log_channel_id': row[1],
+                'verified_role_id': row[2],
+                'unverified_role_id': row[3],
+                'verification_channel_id': row[4],
+                'staff_role_id': row[5],
+                'automod_enabled': row[6],
+                'anti_raid_enabled': row[7],
+                'anti_nuke_enabled': row[8],
+                'welcome_channel_id': row[9],
+                'leave_channel_id': row[10],
+                'welcome_message': row[11],
+                'leave_message': row[12],
+                'invite_tracking_enabled': row[13],
+                'invite_tracker_channel_id': row[14]
+            }
+        return {}
     
     def update_guild_setting(self, guild_id: int, setting: str, value):
         self.db.execute(f"""
