@@ -412,9 +412,6 @@ class DataManager:
     
     def clear_warnings(self, user_id: int):
         self.db.execute("DELETE FROM warnings WHERE user_id = %s", (user_id,))
-    
-    # settings
-    def get_guild_settings(self, guild_id: int) -> Dict:
 
 
 # bot setup
