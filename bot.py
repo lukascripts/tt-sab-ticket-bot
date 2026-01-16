@@ -1031,6 +1031,21 @@ async def check_invites(ctx, member: discord.Member = None):
     
     await ctx.send(embed=embed)
 
+@bot.command(name='migratedb')
+@is_owner_or_admin()
+async def migrate_database(ctx):
+    """add the invite_tracker_channel_id column to database"""
+    try:
+        # Add the new column
+        data_manager.db.execute("""
+            ALTER TABLE bot_settings 
+            ADD COLUMN IF NOT EXISTS invite_tracker_channel_id BIGINT
+        """)
+        
+        await ctx.send('✅ database migrated! invite tracker channel column added')
+    except Exception as e:
+        await ctx.send(f'❌ migration failed: {e}')
+
 @bot.command(name='whoinvited')
 @is_moderator()
 async def who_invited(ctx, member: discord.Member):
