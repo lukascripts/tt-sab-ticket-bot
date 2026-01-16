@@ -783,13 +783,11 @@ async def on_member_join(member: discord.Member):
         )
     
     
-
-    # send welcome message
+    # send welcome message - PERMANENT VERSION
     welcome_channel_id = settings.get('welcome_channel_id')
     if welcome_channel_id:
         welcome_channel = guild.get_channel(welcome_channel_id)
         if welcome_channel:
-            
             # get custom message or use default
             message = settings.get('welcome_message') or "Welcome {user} to **{server}**!"
         
@@ -804,10 +802,19 @@ async def on_member_join(member: discord.Member):
                 message = message.replace('{inviter}', 'unknown')
         
             try:
-               # Send plain text message, no embed!
-               await welcome_channel.send(message)
+                # Send permanent message - NO deletion
+                await welcome_channel.send(message)
+                
+                # Log the welcome
+                await log_action(
+                    guild,
+                    'welcome message sent',
+                    f'user: {member.mention}\nchannel: {welcome_channel.mention}',
+                    discord.Color.green()
+                )
             except Exception as e:
                 logging.error(f"failed to send welcome message: {e}")
+                
     
     # bot protection
     if member.bot:
@@ -889,7 +896,8 @@ async def on_member_remove(member: discord.Member):
     guild = member.guild
     settings = data_manager.get_guild_settings(guild.id)
     
-    # send leave message (PLAIN TEXT - NO EMBED)
+    
+    # send leave message - PERMANENT VERSION
     leave_channel_id = settings.get('leave_channel_id')
     if leave_channel_id:
         leave_channel = guild.get_channel(leave_channel_id)
@@ -903,8 +911,16 @@ async def on_member_remove(member: discord.Member):
             message = message.replace('{count}', str(guild.member_count))
             
             try:
-                # Send plain text message, no embed!
+                # Send permanent message - NO deletion
                 await leave_channel.send(message)
+                
+                # Log the leave
+                await log_action(
+                    guild,
+                    'leave message sent',
+                    f'user: {member.name}\nchannel: {leave_channel.mention}',
+                    discord.Color.orange()
+                )
             except Exception as e:
                 logging.error(f"failed to send leave message: {e}")
     
@@ -1556,6 +1572,271 @@ async def unlockdown_cmd(ctx):
         )
     except Exception as e:
         await ctx.send(f'failed to end lockdown: {e}')
+
+"""
+STEP 3: New Advanced Commands to Add
+PASTE this AFTER the existing moderation commands section (around line 1500)
+BEFORE the auto-moderation section
+"""
+
+# ========== NEW ADVANCED MODERATION COMMANDS ==========
+
+@bot.command(name='mute')
+@is_owner_or_admin()
+async def mute_cmd(ctx, member: discord.Member, *, reason: str = "no reason given"):
+    """permanently timeout someone until manually unmuted"""
+    can_do, error_msg = can_execute_action(ctx, member)
+    
+    if not can_do:
+        return await ctx.send(f'❌ {error_msg}')
+    
+    try:
+        # Timeout for 28 days (max)
+        await member.timeout(timedelta(days=28), reason=f'{reason} | by {ctx.author}')
+        
+        embed = discord.Embed(
+            title='🔇 Member Muted',
+            description=f'{member.mention} has been permanently muted',
+            color=discord.Color.dark_gray()
+        )
+        embed.add_field(name='Reason', value=reason, inline=False)
+        embed.add_field(name='Moderator', value=ctx.author.mention, inline=True)
+        embed.set_footer(text='Use +unmute to remove the mute')
+        
+        await ctx.send(embed=embed)
+        
+        await log_action(
+            ctx.guild,
+            'member muted',
+            f'user: {member.mention}\nmoderator: {ctx.author.mention}',
+            discord.Color.dark_gray(),
+            [('reason', reason)]
+        )
+    except Exception as e:
+        await ctx.send(f'failed to mute: {e}')
+
+@bot.command(name='unmute')
+@is_owner_or_admin()
+async def unmute_cmd(ctx, member: discord.Member):
+    """remove permanent mute from someone"""
+    can_do, error_msg = can_execute_action(ctx, member)
+    
+    if not can_do:
+        return await ctx.send(f'❌ {error_msg}')
+    
+    try:
+        await member.timeout(None, reason=f'unmuted by {ctx.author}')
+        
+        await ctx.send(f'🔊 {member.mention} has been unmuted')
+        
+        await log_action(
+            ctx.guild,
+            'member unmuted',
+            f'user: {member.mention}\nmoderator: {ctx.author.mention}',
+            discord.Color.green()
+        )
+    except Exception as e:
+        await ctx.send(f'failed to unmute: {e}')
+
+@bot.command(name='nick')
+@is_owner_or_admin()
+async def nick_cmd(ctx, member: discord.Member, *, nickname: str = None):
+    """change someone's nickname"""
+    can_do, error_msg = can_execute_action(ctx, member)
+    
+    if not can_do:
+        return await ctx.send(f'❌ {error_msg}')
+    
+    try:
+        old_nick = member.display_name
+        await member.edit(nick=nickname, reason=f'nickname changed by {ctx.author}')
+        
+        if nickname:
+            await ctx.send(f'✅ changed {member.mention}\'s nickname to **{nickname}**')
+        else:
+            await ctx.send(f'✅ reset {member.mention}\'s nickname')
+        
+        await log_action(
+            ctx.guild,
+            'nickname changed',
+            f'user: {member.mention}\nold: {old_nick}\nnew: {nickname or "reset"}\nmoderator: {ctx.author.mention}',
+            discord.Color.blue()
+        )
+    except Exception as e:
+        await ctx.send(f'failed to change nickname: {e}')
+
+
+@bot.command(name='role')
+@is_owner_or_admin()
+async def role_cmd(ctx, member: discord.Member, role: discord.Role):
+    """toggle a role on a member (add if they don't have it, remove if they do)"""
+    can_do, error_msg = can_execute_action(ctx, member)
+    
+    if not can_do:
+        return await ctx.send(f'❌ {error_msg}')
+    
+    try:
+        if role in member.roles:
+            await member.remove_roles(role, reason=f'role toggled by {ctx.author}')
+            await ctx.send(f'➖ removed {role.mention} from {member.mention}')
+            action = 'removed'
+        else:
+            await member.add_roles(role, reason=f'role toggled by {ctx.author}')
+            await ctx.send(f'➕ added {role.mention} to {member.mention}')
+            action = 'added'
+        
+        await log_action(
+            ctx.guild,
+            f'role {action}',
+            f'user: {member.mention}\nrole: {role.mention}\nmoderator: {ctx.author.mention}',
+            discord.Color.blue()
+        )
+    except Exception as e:
+        await ctx.send(f'failed to toggle role: {e}')
+
+@bot.command(name='addrole')
+@is_owner_or_admin()
+async def addrole_cmd(ctx, member: discord.Member, role: discord.Role):
+    """add a role to a member"""
+    can_do, error_msg = can_execute_action(ctx, member)
+    
+    if not can_do:
+        return await ctx.send(f'❌ {error_msg}')
+    
+    try:
+        await member.add_roles(role, reason=f'role added by {ctx.author}')
+        await ctx.send(f'✅ added {role.mention} to {member.mention}')
+        
+        await log_action(
+            ctx.guild,
+            'role added',
+            f'user: {member.mention}\nrole: {role.mention}\nmoderator: {ctx.author.mention}',
+            discord.Color.green()
+        )
+    except Exception as e:
+        await ctx.send(f'failed to add role: {e}')
+
+@bot.command(name='removerole')
+@is_owner_or_admin()
+async def removerole_cmd(ctx, member: discord.Member, role: discord.Role):
+    """remove a role from a member"""
+    can_do, error_msg = can_execute_action(ctx, member)
+    
+    if not can_do:
+        return await ctx.send(f'❌ {error_msg}')
+    
+    try:
+        await member.remove_roles(role, reason=f'role removed by {ctx.author}')
+        await ctx.send(f'✅ removed {role.mention} from {member.mention}')
+        
+        await log_action(
+            ctx.guild,
+            'role removed',
+            f'user: {member.mention}\nrole: {role.mention}\nmoderator: {ctx.author.mention}',
+            discord.Color.red()
+        )
+    except Exception as e:
+        await ctx.send(f'failed to remove role: {e}')
+
+@bot.command(name='roleall')
+@is_owner_or_admin()
+async def roleall_cmd(ctx, role: discord.Role):
+    """give a role to all members (use with caution!)"""
+    # Confirmation
+    confirm_embed = discord.Embed(
+        title='⚠️ Confirm Mass Role Assignment',
+        description=f'Are you sure you want to give {role.mention} to **ALL {ctx.guild.member_count} members**?',
+        color=discord.Color.orange()
+    )
+    
+    msg = await ctx.send(embed=confirm_embed)
+    await msg.add_reaction('✅')
+    await msg.add_reaction('❌')
+    
+    def check(reaction, user):
+        return user == ctx.author and str(reaction.emoji) in ['✅', '❌'] and reaction.message.id == msg.id
+    
+    try:
+        reaction, user = await bot.wait_for('reaction_add', timeout=30.0, check=check)
+        
+        if str(reaction.emoji) == '❌':
+            await msg.edit(embed=discord.Embed(description='❌ cancelled', color=discord.Color.red()))
+            return
+        
+        # Execute
+        added = 0
+        failed = 0
+        status_msg = await ctx.send(f'⏳ adding {role.mention} to all members...')
+        
+        for member in ctx.guild.members:
+            if role not in member.roles and not member.bot:
+                try:
+                    await member.add_roles(role)
+                    added += 1
+                except:
+                    failed += 1
+        
+        await status_msg.edit(content=f'✅ added {role.mention} to {added} members! (failed: {failed})')
+        
+        await log_action(
+            ctx.guild,
+            'mass role assignment',
+            f'role: {role.mention}\nadded to: {added} members\nmoderator: {ctx.author.mention}',
+            discord.Color.blue()
+        )
+    except asyncio.TimeoutError:
+        await msg.edit(embed=discord.Embed(description='❌ timed out', color=discord.Color.red()))
+
+@bot.command(name='removeall')
+@is_owner_or_admin()
+async def removeall_cmd(ctx, role: discord.Role):
+    """remove a role from all members who have it"""
+    # Confirmation
+    members_with_role = [m for m in ctx.guild.members if role in m.roles]
+    
+    confirm_embed = discord.Embed(
+        title='⚠️ Confirm Mass Role Removal',
+        description=f'Are you sure you want to remove {role.mention} from **{len(members_with_role)} members**?',
+        color=discord.Color.orange()
+    )
+    
+    msg = await ctx.send(embed=confirm_embed)
+    await msg.add_reaction('✅')
+    await msg.add_reaction('❌')
+    
+    def check(reaction, user):
+        return user == ctx.author and str(reaction.emoji) in ['✅', '❌'] and reaction.message.id == msg.id
+    
+    try:
+        reaction, user = await bot.wait_for('reaction_add', timeout=30.0, check=check)
+        
+        if str(reaction.emoji) == '❌':
+            await msg.edit(embed=discord.Embed(description='❌ cancelled', color=discord.Color.red()))
+            return
+        
+        # Execute
+        removed = 0
+        failed = 0
+        status_msg = await ctx.send(f'⏳ removing {role.mention} from all members...')
+        
+        for member in members_with_role:
+            try:
+                await member.remove_roles(role)
+                removed += 1
+            except:
+                failed += 1
+        
+        await status_msg.edit(content=f'✅ removed {role.mention} from {removed} members! (failed: {failed})')
+        
+        await log_action(
+            ctx.guild,
+            'mass role removal',
+            f'role: {role.mention}\nremoved from: {removed} members\nmoderator: {ctx.author.mention}',
+            discord.Color.blue()
+        )
+    except asyncio.TimeoutError:
+        await msg.edit(embed=discord.Embed(description='❌ timed out', color=discord.Color.red()))
+
 
 """
 Part 4: Auto-Moderation & Message Filtering
@@ -2806,77 +3087,382 @@ async def botinfo_cmd(ctx):
     
     await ctx.send(embed=embed)
 
-# help command
+"""
+STEP 1: Enhanced Help Command with Pagination
+REPLACE the existing @bot.command(name='help') with this code
+This goes around line 2350 in your bot.py file
+"""
+
+# Help pagination view
+class HelpPaginator(View):
+    def __init__(self, embeds, author_id):
+        super().__init__(timeout=60)
+        self.embeds = embeds
+        self.current_page = 0
+        self.author_id = author_id
+        self.update_buttons()
+    
+    def update_buttons(self):
+        self.previous_button.disabled = self.current_page == 0
+        self.next_button.disabled = self.current_page == len(self.embeds) - 1
+        
+        # Update button labels with page numbers
+        self.previous_button.label = f"◀ Page {self.current_page}" if self.current_page > 0 else "◀"
+        self.next_button.label = f"Page {self.current_page + 2} ▶" if self.current_page < len(self.embeds) - 1 else "▶"
+    
+    @discord.ui.button(label="◀", style=discord.ButtonStyle.blurple, custom_id="help_previous")
+    async def previous_button(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id != self.author_id:
+            return await interaction.response.send_message("❌ this isn't your help menu", ephemeral=True)
+        
+        self.current_page = max(0, self.current_page - 1)
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.embeds[self.current_page], view=self)
+    
+    @discord.ui.button(label="🏠", style=discord.ButtonStyle.gray, custom_id="help_home")
+    async def home_button(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id != self.author_id:
+            return await interaction.response.send_message("❌ this isn't your help menu", ephemeral=True)
+        
+        self.current_page = 0
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.embeds[self.current_page], view=self)
+    
+    @discord.ui.button(label="▶", style=discord.ButtonStyle.blurple, custom_id="help_next")
+    async def next_button(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id != self.author_id:
+            return await interaction.response.send_message("❌ this isn't your help menu", ephemeral=True)
+        
+        self.current_page = min(len(self.embeds) - 1, self.current_page + 1)
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.embeds[self.current_page], view=self)
+    
+    @discord.ui.button(label="❌", style=discord.ButtonStyle.danger, custom_id="help_close")
+    async def close_button(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id != self.author_id:
+            return await interaction.response.send_message("❌ this isn't your help menu", ephemeral=True)
+        
+        await interaction.message.delete()
+
+# Enhanced help command
 @bot.command(name='help')
-async def help_cmd(ctx):
-    """main help menu"""
+async def help_cmd(ctx, category: str = None):
+    """main help menu with categories"""
     is_owner_user = ctx.author.id == Config.OWNER_ID
     is_admin = ctx.author.guild_permissions.administrator if ctx.guild else False
     is_mod = ctx.author.guild_permissions.kick_members or ctx.author.guild_permissions.ban_members if ctx.guild else False
     
-    embed = discord.Embed(
-        title='bot commands',
-        description=f'prefix: `{Config.PREFIX}` | slash commands: `/`',
-        color=discord.Color.blue()
+    embeds = []
+    
+    # Main overview page
+    main_embed = discord.Embed(
+        title='📚 Bot Command Guide',
+        description=(
+            f'**Welcome to the help menu!**\n\n'
+            f'🔹 Prefix: `{Config.PREFIX}`\n'
+            f'🔹 Slash Commands: `/`\n'
+            f'🔹 Total Commands: `50+`\n\n'
+            f'**Use the buttons below to navigate categories**\n'
+            f'Or use `{Config.PREFIX}help <category>` for quick access'
+        ),
+        color=discord.Color.blue(),
+        timestamp=datetime.utcnow()
+    )
+    main_embed.add_field(
+        name='📖 Categories',
+        value=(
+            '`moderation` - Moderation commands\n'
+            '`security` - Server protection\n'
+            '`tickets` - Ticket system\n'
+            '`verification` - Verification system\n'
+            '`welcome` - Welcome/Leave setup\n'
+            '`invites` - Invite tracking\n'
+            '`utility` - Utility commands'
+        ),
+        inline=False
     )
     
-    if is_mod or is_admin or is_owner_user:
-        embed.add_field(
-            name='🛡️ moderation',
-            value='`+kick` `+ban` `+unban` `+softban` `+timeout` `+untimeout`\n`+warn` `+warnings` `+clearwarnings` `+purge` `+purgeuser` `+slowmode`',
-            inline=False
-        )
+    settings = data_manager.get_guild_settings(ctx.guild.id) if ctx.guild else {}
+    main_embed.add_field(
+        name='🛡️ Current Protection Status',
+        value=(
+            f'Anti-Nuke: {"✅" if settings.get("anti_nuke_enabled", True) else "❌"}\n'
+            f'Anti-Raid: {"✅" if settings.get("anti_raid_enabled", True) else "❌"}\n'
+            f'Auto-Mod: {"✅" if settings.get("automod_enabled", True) else "❌"}'
+        ),
+        inline=True
+    )
+    main_embed.set_footer(text=f'Requested by {ctx.author}', icon_url=ctx.author.display_avatar.url)
+    main_embed.set_thumbnail(url=bot.user.display_avatar.url)
+    embeds.append(main_embed)
     
+    # Moderation page
+    if is_mod or is_admin or is_owner_user:
+        mod_embed = discord.Embed(
+            title='🛡️ Moderation Commands',
+            description='Commands for managing server members',
+            color=discord.Color.orange(),
+            timestamp=datetime.utcnow()
+        )
+        mod_embed.add_field(
+            name='👤 Member Actions',
+            value=(
+                f'`{Config.PREFIX}kick <member> [reason]` - Kick a member\n'
+                f'`{Config.PREFIX}ban <member> [reason]` - Ban a member\n'
+                f'`{Config.PREFIX}unban <user_id> [reason]` - Unban a user\n'
+                f'`{Config.PREFIX}mute <member>` - Permenatly Mute a member\n' 
+                f'`{Config.PREFIX}unmute <member>` - Unmute a member\n'
+                f'`{Config.PREFIX}role <member>` - Add/Remove a role from a member\n'
+                f'`{Config.PREFIX}softban <member> [reason]` - Ban+unban to delete messages\n'
+                f'`{Config.PREFIX}timeout <member> <minutes> [reason]` - Timeout a member\n'
+                f'`{Config.PREFIX}untimeout <member>` - Remove timeout'
+            ),
+            inline=False
+        )
+        mod_embed.add_field(
+            name='⚠️ Warnings',
+            value=(
+                f'`{Config.PREFIX}warn <member> [reason]` - Warn a member\n'
+                f'`{Config.PREFIX}warnings <member>` - View warnings\n'
+                f'`{Config.PREFIX}clearwarnings <member>` - Clear all warnings'
+            ),
+            inline=False
+        )
+        mod_embed.add_field(
+            name='🗑️ Message Management',
+            value=(
+                f'`{Config.PREFIX}purge <amount>` - Delete messages (max 100)\n'
+                f'`{Config.PREFIX}purgeuser <member> [amount]` - Delete user messages\n'
+                f'`{Config.PREFIX}slowmode <seconds>` - Set channel slowmode'
+            ),
+            inline=False
+        )
+        mod_embed.set_footer(text=f'Page 2 of {len(embeds) + 6} • Moderation')
+        embeds.append(mod_embed)
+    
+    # Security page
     if is_admin or is_owner_user:
-        embed.add_field(
-            name='🔒 server security',
-            value='`+lock` `+unlock` `+lockdown` `+unlockdown`\n`+antiraid` `+antinuke` `+automod`',
+        security_embed = discord.Embed(
+            title='🔒 Security Commands',
+            description='Server protection and security features',
+            color=discord.Color.red(),
+            timestamp=datetime.utcnow()
+        )
+        security_embed.add_field(
+            name='🔐 Channel Security',
+            value=(
+                f'`{Config.PREFIX}lock [channel]` - Lock a channel\n'
+                f'`{Config.PREFIX}unlock [channel]` - Unlock a channel\n'
+                f'`{Config.PREFIX}lockdown` - Lock entire server\n'
+                f'`{Config.PREFIX}unlockdown` - Remove server lockdown'
+            ),
             inline=False
         )
-        
-        embed.add_field(
-            name='👋 welcome/leave',
-            value='`+setwelcome` `+setleave` `+welcomemsg` `+leavemsg`',
+        security_embed.add_field(
+            name='🛡️ Protection Toggles',
+            value=(
+                f'`{Config.PREFIX}automod <on/off>` - Toggle auto-moderation\n'
+                f'`{Config.PREFIX}antiraid <on/off>` - Toggle anti-raid mode\n'
+                f'`{Config.PREFIX}antinuke <on/off>` - Toggle anti-nuke protection'
+            ),
             inline=False
         )
-        
-        embed.add_field(
-            name='📊 invite tracking',
-            value='`+invitetracking` `+invites` +setinvitetracker` +whoinvited`',
+        security_embed.add_field(
+            name='📋 What Gets Protected',
+            value=(
+                '**Auto-Mod**: Spam, profanity, mention spam, link spam, caps\n'
+                '**Anti-Raid**: Mass joins, new accounts, verification level\n'
+                '**Anti-Nuke**: Unauthorized bot additions, mass actions'
+            ),
             inline=False
         )
+        security_embed.set_footer(text=f'Page 3 • Security')
+        embeds.append(security_embed)
+    
+    # Tickets page
+    tickets_embed = discord.Embed(
+        title='🎫 Ticket System',
+        description='Complete ticket system with support, partnership, and middleman tickets',
+        color=discord.Color.purple(),
+        timestamp=datetime.utcnow()
+    )
+    tickets_embed.add_field(
+        name='🎟️ Setup',
+        value=(
+            f'`{Config.PREFIX}ticketsetup` - Create ticket panel\n'
+            f'`{Config.PREFIX}ticketrole <type> <role>` - Set role for ticket pings\n'
+            f'`{Config.PREFIX}ticketstats` - View ticket statistics'
+        ),
+        inline=False
+    )
+    tickets_embed.add_field(
+        name='🎪 Ticket Management',
+        value=(
+            f'`{Config.PREFIX}close` - Close current ticket\n'
+            f'`{Config.PREFIX}claim` - Claim a ticket\n'
+            f'`{Config.PREFIX}unclaim` - Unclaim a ticket\n'
+            f'`{Config.PREFIX}add <user>` - Add user to ticket\n'
+            f'`{Config.PREFIX}remove <user>` - Remove user from ticket'
+        ),
+        inline=False
+    )
+    tickets_embed.add_field(
+        name='📝 Ticket Types',
+        value='🤝 Partnership • ⚖️ Middleman • 🎫 Support',
+        inline=False
+    )
+    tickets_embed.set_footer(text=f'Page 4 • Tickets')
+    embeds.append(tickets_embed)
+    
+    # Verification page
+    if is_owner_user:
+        verification_embed = discord.Embed(
+            title='✅ Verification System',
+            description='Automated verification system for new members',
+            color=discord.Color.green(),
+            timestamp=datetime.utcnow()
+        )
+        verification_embed.add_field(
+            name='⚙️ Setup Commands',
+            value=(
+                f'`/verification_setup` - Configure verification roles\n'
+                f'`/verification_panel` - Send verification panel\n'
+            ),
+            inline=False
+        )
+        verification_embed.add_field(
+            name='📋 How It Works',
+            value=(
+                '1️⃣ New members auto-receive **Unverified** role\n'
+                '2️⃣ Members click verify button in verification channel\n'
+                '3️⃣ Bot removes Unverified role and adds Verified role\n'
+                '4️⃣ Member gains access to server channels'
+            ),
+            inline=False
+        )
+        verification_embed.add_field(
+            name='🔐 Security Features',
+            value='• Blacklisted users cannot verify\n• Automatic role swapping\n• Logging of all verifications',
+            inline=False
+        )
+        verification_embed.set_footer(text=f'Page 5 • Verification')
+        embeds.append(verification_embed)
+    
+    # Welcome/Leave page
+    if is_admin or is_owner_user:
+        welcome_embed = discord.Embed(
+            title='👋 Welcome & Leave System',
+            description='Customize welcome and leave messages',
+            color=discord.Color.gold(),
+            timestamp=datetime.utcnow()
+        )
+        welcome_embed.add_field(
+            name='🎉 Setup Commands',
+            value=(
+                f'`{Config.PREFIX}setwelcome <channel>` - Set welcome channel\n'
+                f'`{Config.PREFIX}welcomemsg <message>` - Set welcome message\n'
+                f'`{Config.PREFIX}setleave <channel>` - Set leave channel\n'
+                f'`{Config.PREFIX}leavemsg <message>` - Set leave message'
+            ),
+            inline=False
+        )
+        welcome_embed.add_field(
+            name='📝 Available Placeholders',
+            value=(
+                '`{user}` - Mentions the user\n'
+                '`{server}` - Server name\n'
+                '`{count}` - Member count\n'
+                '`{inviter}` - Who invited them'
+            ),
+            inline=False
+        )
+        welcome_embed.add_field(
+            name='💡 Example',
+            value=(
+                f'`{Config.PREFIX}welcomemsg Welcome {{user}} to **{{server}}**! '
+                'You are member #{{count}}! Invited by {{inviter}}`'
+            ),
+            inline=False
+        )
+        welcome_embed.set_footer(text=f'Page 6 • Welcome/Leave')
+        embeds.append(welcome_embed)
+    
+    # Invite Tracking page
+    if is_admin or is_owner_user:
+        invite_embed = discord.Embed(
+            title='📊 Invite Tracking',
+            description='Track who invites who to your server',
+            color=discord.Color.teal(),
+            timestamp=datetime.utcnow()
+        )
+        invite_embed.add_field(
+            name='🎯 Setup Commands',
+            value=(
+                f'`{Config.PREFIX}invitetracking <on/off>` - Toggle tracking\n'
+                f'`{Config.PREFIX}setinvitetracker <channel>` - Set notification channel'
+            ),
+            inline=False
+        )
+        invite_embed.add_field(
+            name='📈 Tracking Commands',
+            value=(
+                f'`{Config.PREFIX}invites [member]` - Check invite count\n'
+                f'`{Config.PREFIX}whoinvited <member>` - See who invited someone'
+            ),
+            inline=False
+        )
+        invite_embed.add_field(
+            name='✨ Features',
+            value=(
+                '• Real-time invite tracking\n'
+                '• Notification when someone joins\n'
+                '• Shows who invited each member\n'
+                '• Leaderboard of top inviters'
+            ),
+            inline=False
+        )
+        invite_embed.set_footer(text=f'Page 7 • Invite Tracking')
+        embeds.append(invite_embed)
+    
+    # Utility page
+    utility_embed = discord.Embed(
+        title='ℹ️ Utility Commands',
+        description='Helpful information and utility commands',
+        color=discord.Color.blue(),
+        timestamp=datetime.utcnow()
+    )
+    utility_embed.add_field(
+        name='📱 Information',
+        value=(
+            f'`{Config.PREFIX}ping` - Check bot latency\n'
+            f'`{Config.PREFIX}serverinfo` - View server information\n'
+            f'`{Config.PREFIX}userinfo [member]` - View user information\n'
+            f'`{Config.PREFIX}avatar [member]` - View user avatar\n'
+            f'`{Config.PREFIX}botinfo` - View bot information'
+        ),
+        inline=False
+    )
     
     if is_owner_user:
-        embed.add_field(
-            name='⚙️ whitelist/blacklist',
-            value='`/whitelist_add` `/whitelist_remove` `/whitelist_list`\n`/blacklist_add` `/blacklist_remove` `/blacklist_list`',
+        utility_embed.add_field(
+            name='⚙️ Owner Only',
+            value=(
+                f'`/whitelist_add` - Add user to whitelist\n'
+                f'`/whitelist_remove` - Remove from whitelist\n'
+                f'`/whitelist_list` - View whitelist\n'
+                f'`/blacklist_add` - Add user to blacklist\n'
+                f'`/blacklist_remove` - Remove from blacklist\n'
+                f'`/blacklist_list` - View blacklist'
+            ),
             inline=False
         )
     
-    embed.add_field(
-        name='🎫 tickets',
-        value='`+ticketsetup` `+close` `+claim` `+unclaim`\n`+add` `+remove` `+ticketrole` `+ticketstats`',
-        inline=False
-    )
+    utility_embed.set_footer(text=f'Page {len(embeds) + 1} • Utility')
+    embeds.append(utility_embed)
     
-    embed.add_field(
-        name='ℹ️ utility',
-        value='`+ping` `+serverinfo` `+userinfo` `+avatar` `+botinfo`',
-        inline=False
-    )
-    
-    settings = data_manager.get_guild_settings(ctx.guild.id)
-    embed.add_field(
-        name='🛡️ protection status',
-        value=f'anti-nuke: {"✅" if settings.get("anti_nuke_enabled", True) else "❌"}\n'
-              f'anti-raid: {"✅" if settings.get("anti_raid_enabled", True) else "❌"}\n'
-              f'auto-mod: {"✅" if settings.get("automod_enabled", True) else "❌"}',
-        inline=False
-    )
-    
-    embed.set_footer(text=f'requested by {ctx.author}')
-    
-    await ctx.send(embed=embed)
+    # Send with pagination
+    view = HelpPaginator(embeds, ctx.author.id)
+    await ctx.send(embed=embeds[0], view=view)
 
 # error handlers
 @bot.event
