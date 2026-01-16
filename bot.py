@@ -2272,6 +2272,64 @@ async def close_ticket(channel: discord.TextChannel, user: discord.Member):
     await asyncio.sleep(5)
     await channel.delete()
 
+# Verification Button View
+class VerifyButton(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+    
+    @discord.ui.button(label='Verify', emoji='✅', style=discord.ButtonStyle.success, custom_id='verify_button')
+    async def verify_button(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer(ephemeral=True)
+        
+        # Check if user is blacklisted
+        if data_manager.is_blacklisted(interaction.user.id):
+            await interaction.followup.send('❌ you are blacklisted and cannot verify', ephemeral=True)
+            return
+        
+        # Get guild settings
+        settings = data_manager.get_guild_settings(interaction.guild.id)
+        verified_role_id = settings.get('verified_role_id')
+        unverified_role_id = settings.get('unverified_role_id')
+        
+        if not verified_role_id:
+            await interaction.followup.send('❌ verification system not set up properly', ephemeral=True)
+            return
+        
+        verified_role = interaction.guild.get_role(verified_role_id)
+        if not verified_role:
+            await interaction.followup.send('❌ verified role not found', ephemeral=True)
+            return
+        
+        # Check if already verified
+        if verified_role in interaction.user.roles:
+            await interaction.followup.send('✅ you are already verified!', ephemeral=True)
+            return
+        
+        try:
+            # Add verified role
+            await interaction.user.add_roles(verified_role, reason='user verified')
+            
+            # Remove unverified role if it exists
+            if unverified_role_id:
+                unverified_role = interaction.guild.get_role(unverified_role_id)
+                if unverified_role and unverified_role in interaction.user.roles:
+                    await interaction.user.remove_roles(unverified_role, reason='user verified')
+            
+            # Success message
+            await interaction.followup.send('✅ you have been verified! welcome to the server', ephemeral=True)
+            
+            # Log the verification
+            await log_action(
+                interaction.guild,
+                'user verified',
+                f'user: {interaction.user.mention}\nverified successfully',
+                discord.Color.green()
+            )
+            
+        except Exception as e:
+            logging.error(f"verification failed: {e}")
+            await interaction.followup.send(f'❌ verification failed: {e}', ephemeral=True)
+
 # ticket setup command
 @bot.command(name='ticketsetup')
 @is_owner_or_admin()
@@ -2517,12 +2575,106 @@ async def ticket_stats(ctx):
 
     await ctx.reply(embed=embed)
 
+# Verification setup slash command
+@bot.tree.command(name="verification_setup", description="setup verification system roles")
+@app_commands.describe(
+    verified_role="role to give when user verifies",
+    unverified_role="role to give when user joins (optional)"
+)
+@is_owner()
+async def verification_setup(
+    interaction: discord.Interaction, 
+    verified_role: discord.Role,
+    unverified_role: discord.Role = None
+):
+    """Setup verification system"""
+    
+    # Save verified role
+    data_manager.update_guild_setting(interaction.guild.id, 'verified_role_id', verified_role.id)
+    
+    # Save unverified role if provided
+    if unverified_role:
+        data_manager.update_guild_setting(interaction.guild.id, 'unverified_role_id', unverified_role.id)
+    
+    embed = discord.Embed(
+        title='✅ verification system configured',
+        color=discord.Color.green()
+    )
+    embed.add_field(name='✅ verified role', value=verified_role.mention, inline=False)
+    if unverified_role:
+        embed.add_field(name='❌ unverified role', value=unverified_role.mention, inline=False)
+        embed.add_field(
+            name='📝 note', 
+            value='new members will automatically receive the unverified role when they join',
+            inline=False
+        )
+    
+    await interaction.response.send_message(embed=embed)
+    
+    await log_action(
+        interaction.guild,
+        'verification system setup',
+        f'verified role: {verified_role.mention}\nunverified role: {unverified_role.mention if unverified_role else "none"}\nsetup by: {interaction.user.mention}',
+        discord.Color.blue()
+    )
+
+
+# Verification panel slash command
+@bot.tree.command(name="verification_panel", description="send the verification panel in this channel")
+@is_owner()
+async def verification_panel(interaction: discord.Interaction):
+    """Send verification panel"""
+    
+    settings = data_manager.get_guild_settings(interaction.guild.id)
+    verified_role_id = settings.get('verified_role_id')
+    
+    if not verified_role_id:
+        await interaction.response.send_message(
+            '❌ please setup verification first using `/verification_setup`',
+            ephemeral=True
+        )
+        return
+    
+    # Save verification channel
+    data_manager.update_guild_setting(interaction.guild.id, 'verification_channel_id', interaction.channel.id)
+    
+    # Create embed
+    embed = discord.Embed(
+        title='🔐 server verification',
+        description=(
+            '> **welcome to the server!**\n'
+            '> to gain access to all channels, please verify below\n\n'
+            '**click the verify button to get started** ✅'
+        ),
+        color=0x5865F2
+    )
+    embed.set_footer(text=f'{interaction.guild.name}', icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+    
+    if interaction.guild.icon:
+        embed.set_thumbnail(url=interaction.guild.icon.url)
+    
+    await interaction.channel.send(embed=embed, view=VerifyButton())
+    
+    confirm = discord.Embed(
+        description='✅ **verification panel created!**',
+        color=0x57F287
+    )
+    await interaction.response.send_message(embed=confirm, ephemeral=True)
+    
+    await log_action(
+        interaction.guild,
+        'verification panel created',
+        f'channel: {interaction.channel.mention}\ncreated by: {interaction.user.mention}',
+        discord.Color.green()
+    )
+
 # register persistent views on ready
 @bot.event
 async def on_ready_tickets():
     """register ticket views"""
     bot.add_view(TicketButtons())
     bot.add_view(CloseTicketView())
+    bot.add_view(VerifyButton())
 
 """
 Part 6: Utility Commands & Bot Launch (FINAL PART)
