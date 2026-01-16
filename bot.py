@@ -249,7 +249,6 @@ class Database:
             return None
 
     class DataManager:
-    """handles all the data stuff with postgres"""
     
     def __init__(self):
         self.db = Database()
