@@ -355,31 +355,54 @@ class DataManager:
         self.db.execute("DELETE FROM warnings WHERE user_id = %s", (user_id,))
     
     # settings
-def get_guild_settings(self, guild_id: int) -> Dict:
+    def get_guild_settings(self, guild_id: int) -> Dict:
+    """Get guild settings from database"""
     result = self.db.execute("""
-        SELECT * FROM bot_settings WHERE guild_id = %s
+        SELECT log_channel_id, verified_role_id, unverified_role_id, 
+               verification_channel_id, staff_role_id, automod_enabled,
+               anti_raid_enabled, anti_nuke_enabled, welcome_channel_id,
+               leave_channel_id, welcome_message, leave_message,
+               invite_tracking_enabled, invite_tracker_channel_id
+        FROM bot_settings 
+        WHERE guild_id = %s
     """, (guild_id,), fetch=True)
     
-    if result:
+    if result and len(result) > 0:
         row = result[0]
-        # Safe access with defaults for missing columns
         return {
-            'log_channel_id': row[1] if len(row) > 1 else None,
-            'verified_role_id': row[2] if len(row) > 2 else None,
-            'unverified_role_id': row[3] if len(row) > 3 else None,
-            'verification_channel_id': row[4] if len(row) > 4 else None,
-            'staff_role_id': row[5] if len(row) > 5 else None,
-            'automod_enabled': row[6] if len(row) > 6 else True,
-            'anti_raid_enabled': row[7] if len(row) > 7 else True,
-            'anti_nuke_enabled': row[8] if len(row) > 8 else True,
-            'welcome_channel_id': row[9] if len(row) > 9 else None,
-            'leave_channel_id': row[10] if len(row) > 10 else None,
-            'welcome_message': row[11] if len(row) > 11 else None,
-            'leave_message': row[12] if len(row) > 12 else None,
-            'invite_tracking_enabled': row[13] if len(row) > 13 else False,
-            'invite_tracker_channel_id': row[14] if len(row) > 14 else None
+            'log_channel_id': row[0],
+            'verified_role_id': row[1],
+            'unverified_role_id': row[2],
+            'verification_channel_id': row[3],
+            'staff_role_id': row[4],
+            'automod_enabled': row[5] if row[5] is not None else True,
+            'anti_raid_enabled': row[6] if row[6] is not None else True,
+            'anti_nuke_enabled': row[7] if row[7] is not None else True,
+            'welcome_channel_id': row[8],
+            'leave_channel_id': row[9],
+            'welcome_message': row[10],
+            'leave_message': row[11],
+            'invite_tracking_enabled': row[12] if row[12] is not None else False,
+            'invite_tracker_channel_id': row[13]
         }
-    return {}
+    
+    # Return defaults if no settings found
+    return {
+        'log_channel_id': None,
+        'verified_role_id': None,
+        'unverified_role_id': None,
+        'verification_channel_id': None,
+        'staff_role_id': None,
+        'automod_enabled': True,
+        'anti_raid_enabled': True,
+        'anti_nuke_enabled': True,
+        'welcome_channel_id': None,
+        'leave_channel_id': None,
+        'welcome_message': None,
+        'leave_message': None,
+        'invite_tracking_enabled': False,
+        'invite_tracker_channel_id': None
+    }
         
     
     def update_guild_setting(self, guild_id: int, setting: str, value):
