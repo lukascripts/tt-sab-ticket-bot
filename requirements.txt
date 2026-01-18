@@ -1,4 +1,17 @@
+# Discord Security Bot Requirements
+# Save this file as: requirements.txt
+
+# Discord.py - Main Discord library
 discord.py==2.3.2
-python-dotenv==1.0.0
+
+# Database - PostgreSQL
 psycopg2-binary==2.9.9
+
+# Web Server - For 24/7 uptime on Render
 aiohttp==3.9.1
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Async support
+asyncio==3.4.3
